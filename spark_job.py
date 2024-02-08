@@ -10,6 +10,9 @@ from pyspark.sql.types import (
 )
 import boto3
 import json
+from dotenv import load_dotenv
+import os
+import logging
 
 AWS_URL = "s3a://dataminded-academy-capstone-resources/raw/open_aq/"
 CREDS_NAME = 'snowflake/capstone/config'
@@ -35,18 +38,27 @@ def clean_data(frame: DataFrame) -> DataFrame:
         .withColumnRenamed('city', 'province')
     )
 
-def get_snowflake_creds(name: str):
+def get_snowflake_config(name: str):
     session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager')
+    client = session.client(service_name='secretsmanager', region_name=os.environ.get('AWS_REGION', 'eu-west-1'))
     secrets_list = client.list_secrets(Filters=[{'Key': 'name', 'Values': [name]}])
     secret = client.get_secret_value(SecretId = secrets_list['SecretList'][0]['ARN'])
-    return json.loads(secret['SecretString'])
-
+    secrets =  json.loads(secret['SecretString'])
+    return {
+        "sfURL": secrets.get("URL"),
+        "sfUser": secrets.get("USER_NAME"),
+        "sfPassword": secrets.get("PASSWORD"),
+        "sfDatabase": secrets.get("DATABASE"),
+        "sfWarehouse": secrets.get("WAREHOUSE"),
+        "sfSchema": SF_SCHEMA_NAME,
+    }
+    
 def load_data(frame: DataFrame):
     pass    
 
 if __name__ == "__main__":
     if Path("local_data").exists():
+        logging.info(">>>>> Fetching data from local folder...")
         config = {
             "spark.jars.packages":"net.snowflake:spark-snowflake_2.12:2.9.0-spark_3.1,net.snowflake:snowflake-jdbc:3.13.3"
         }
@@ -55,6 +67,9 @@ if __name__ == "__main__":
         spark = SparkSession.builder.getOrCreate()
         frame = spark.read.parquet("local_data")
     else:
+        # Load environment variables
+        load_dotenv()
+        logging.info(">>>>> Fetching data from AWS S3...")
         config = {
             "spark.jars.packages":"net.snowflake:spark-snowflake_2.12:2.9.0-spark_3.1,net.snowflake:snowflake-jdbc:3.13.3,org.apache.hadoop:hadoop-aws:3.2.0",
             "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
@@ -69,20 +84,16 @@ if __name__ == "__main__":
         # from utils import assert_frames_functionally_equivalent
         # assert_frames_functionally_equivalent(frame, frame2)
 
+    spark.sparkContext.setLogLevel("ERROR")
+    logging.info(">>>>> Cleaning data...")
     clean_frame = clean_data(frame)
-    snowflake_creds = get_snowflake_creds(CREDS_NAME)
 
     # Write DataFrame to Snowflake
+    logging.info(">>>>> Writing to snowflake...")
     clean_frame.write.format("net.snowflake.spark.snowflake") \
-        .options(
-            sfURL=snowflake_creds.get("URL"),
-            sfUser= snowflake_creds.get("USER_NAME"),
-            sfPassword=snowflake_creds.get("PASSWORD"),
-            sfDatabase=snowflake_creds.get("DATABASE"),
-            sfWarehouse=snowflake_creds.get("WAREHOUSE"),
-            sfSchema=SF_SCHEMA_NAME,
-        ) \
+        .options(**get_snowflake_config(CREDS_NAME)) \
         .option("dbtable", TARGET_TABLE_NAME) \
         .mode("overwrite") \
         .save()
 
+    logging.info(">>>>> Finished!")
