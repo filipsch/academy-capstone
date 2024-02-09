@@ -1,0 +1,15 @@
+docker:
+    path: .
+id: d9f9d041-d63a-41bd-adf2-e5449241464d
+ide:
+    filename: ide.yaml
+name: filip-capstone-project
+resources:
+    path: resources
+streaming:
+    filename: streaming.yaml
+template: ""
+version: "0.3"
+workflows:
+    path: dags
+    version: "2"
