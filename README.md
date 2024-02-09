@@ -46,7 +46,7 @@ unsaved progress. As stated before, change the Gitpod URL to reflect your remote
 
 Our team recently ingested Belgian weather data from the 
 [openaq](https://openaq.org/) API and stored it on AWS S3 under 
-`s3://dataminded-academy-capstone-resources/raw/open_aq/`.
+`s3a://dataminded-academy-capstone-resources/raw/open_aq/`.
 
 You are tasked with building a PySpark application that reads this data, 
 transforms it and stores it in a Snowflake Table for further analysis. 
@@ -70,7 +70,7 @@ the following JAR to interact with AWS S3 `org.apache.hadoop:hadoop-aws:3.1.2`.
 
 After you've successfully extracted and transformed the data, you can move on to loading said data to Snowflake.
 To this end, you'll require Snowflake credentials stored on AWS Secretsmanager 
-under the following secret `snowflake/capstone/login`.
+under the following secret `snowflake/capstone/config`.
 
 Write Python code that retrieves this secret to leverage in the next step.
 
